@@ -173,8 +173,9 @@ export function SpinnerPage() {
   const [result, setResult] = useState("");
   const [geminiLoading, setGeminiLoading] = useState(false);
   const [starsLoading, setStarsLoading] = useState(false);
-  const [tg, setTg] = useState(null);
-  const [themeParams, setThemeParams] = useState({});
+  const [tg, setTg] = useState(null); // Holds the Telegram WebApp object
+  const [themeParams, setThemeParams] = useState({}); // Holds theme params
+  const [isTelegramEnvironment, setIsTelegramEnvironment] = useState(false); // Explicit flag
 
   // --- Refs ---
   const canvasRef = useRef(null);
@@ -186,42 +187,44 @@ export function SpinnerPage() {
 
   // --- Helper function to apply CSS variables ---
   const applyCssVariables = (params) => {
-    // console.log("Applying CSS variables with params:", params); // Keep logs for now
     const root = document.documentElement;
-    root.style.setProperty("--tg-theme-bg-color", params.bg_color || "#ffffff");
+    // Provide fallbacks for all theme properties
+    root.style.setProperty(
+      "--tg-theme-bg-color",
+      params?.bg_color || "#ffffff"
+    );
     root.style.setProperty(
       "--tg-theme-text-color",
-      params.text_color || "#000000"
+      params?.text_color || "#000000"
     );
     root.style.setProperty(
       "--tg-theme-hint-color",
-      params.hint_color || "#999999"
+      params?.hint_color || "#999999"
     );
     root.style.setProperty(
       "--tg-theme-link-color",
-      params.link_color || "#007aff"
+      params?.link_color || "#007aff"
     );
     root.style.setProperty(
       "--tg-theme-button-color",
-      params.button_color || "#007aff"
+      params?.button_color || "#007aff"
     );
     root.style.setProperty(
       "--tg-theme-button-text-color",
-      params.button_text_color || "#ffffff"
+      params?.button_text_color || "#ffffff"
     );
     root.style.setProperty(
       "--tg-theme-secondary-bg-color",
-      params.secondary_bg_color || "#f0f0f0"
+      params?.secondary_bg_color || "#f0f0f0"
     );
-    document.body.style.backgroundColor = params.bg_color || "#ffffff";
+    document.body.style.backgroundColor = params?.bg_color || "#ffffff"; // Apply to body too
   };
 
   // --- Effects ---
 
-  // 1. Initial Load & Telegram Setup Effect
+  // 1. Initial Load: Detect TG Environment, Load Options, Set Language
   useEffect(() => {
-    // console.log("SpinnerPage useEffect running..."); // Keep logs for now
-
+    // Load saved options
     const savedOptions = localStorage.getItem("decisionSpinnerOptions");
     if (savedOptions) {
       try {
@@ -236,76 +239,54 @@ export function SpinnerPage() {
     }
 
     let telegramApp = null;
-    let isTelegramEnv = false;
+    let detected = false;
 
+    // Try immediate detection
     if (window.Telegram && window.Telegram.WebApp) {
-      // console.log("window.Telegram.WebApp found!"); // Keep logs for now
       telegramApp = window.Telegram.WebApp;
       try {
-        // console.log("Calling telegramApp.ready()..."); // Keep logs for now
-        telegramApp.ready();
-        // console.log("Telegram WebApp is ready."); // Keep logs for now
-        // console.log("Initial Telegram Platform:", telegramApp.platform); // Keep logs for now
-
+        telegramApp.ready(); // Inform Telegram app is ready
         setTg(telegramApp);
-        setThemeParams(telegramApp.themeParams);
-        applyCssVariables(telegramApp.themeParams);
-        isTelegramEnv = true;
-
-        const updateTheme = () => {
-          // console.log("themeChanged event received"); // Keep logs for now
-          setThemeParams(telegramApp.themeParams);
-          applyCssVariables(telegramApp.themeParams);
-        };
-        telegramApp.onEvent("themeChanged", updateTheme);
-
-        telegramApp.BackButton.show();
-        const handleBackButtonClick = () => {
-          // console.log("Telegram Back Button clicked"); // Keep logs for now
-          window.history.back();
-        };
-        telegramApp.BackButton.onClick(handleBackButtonClick);
-
-        return () => {
-          // console.log("Cleaning up SpinnerPage useEffect..."); // Keep logs for now
-          telegramApp.offEvent("themeChanged", updateTheme);
-          if (telegramApp.BackButton.isVisible) {
-            telegramApp.BackButton.offClick(handleBackButtonClick);
-            telegramApp.BackButton.hide();
-          }
-        };
+        setIsTelegramEnvironment(true); // Set the flag
+        detected = true;
+        console.log("TG WebApp found immediately."); // Keep log for context
       } catch (e) {
-        console.error("Error initializing Telegram WebApp:", e);
-        setThemeParams({});
-        applyCssVariables({});
+        console.error("Error during immediate TG init:", e);
+        setIsTelegramEnvironment(false); // Ensure flag is false on error
       }
     }
 
-    if (!isTelegramEnv) {
-      setTimeout(() => {
-        if (window.Telegram && window.Telegram.WebApp && !tg) {
-          // console.log("window.Telegram.WebApp found after delay!"); // Keep logs for now
+    // Fallback timeout only if not detected immediately
+    let timeoutId = null;
+    if (!detected) {
+      timeoutId = setTimeout(() => {
+        if (window.Telegram && window.Telegram.WebApp) {
           telegramApp = window.Telegram.WebApp;
           try {
             telegramApp.ready();
             setTg(telegramApp);
-            setThemeParams(telegramApp.themeParams);
-            applyCssVariables(telegramApp.themeParams);
-            // console.log("Delayed Initial Platform:", telegramApp.platform); // Keep logs for now
+            setIsTelegramEnvironment(true);
+            console.log("TG WebApp found after delay."); // Keep log for context
           } catch (e) {
-            console.error("Error during delayed Telegram init:", e);
-            if (!tg) applyCssVariables({});
+            console.error("Error during delayed TG init:", e);
+            setIsTelegramEnvironment(false);
           }
-        } else if (!tg) {
-          // console.warn("Telegram WebApp script not found even after delay. Running in browser mode."); // Keep logs for now
+        } else {
+          console.warn("TG WebApp not found. Running in browser mode."); // Keep log for context
+          setIsTelegramEnvironment(false);
+          // Apply default styles explicitly if in browser mode
           applyCssVariables({});
         }
-      }, 500);
+      }, 500); // 500ms delay
     }
 
-    const currentTg = tg || telegramApp;
+    // Determine language (can run regardless of TG detection timing)
+    // Use a temporary reference or rely on the state update later
+    const potentialTg = window.Telegram?.WebApp;
     const browserLang = (
-      currentTg?.initDataUnsafe?.user?.language_code || navigator.language
+      potentialTg?.initDataUnsafe?.user?.language_code ||
+      navigator.language ||
+      "en"
     ).split("-")[0];
     let defaultLang = "en";
     if (translations.hasOwnProperty(browserLang)) {
@@ -314,10 +295,51 @@ export function SpinnerPage() {
     const savedLang =
       localStorage.getItem("decisionSpinnerLang") || defaultLang;
     setLang(savedLang);
-    // console.log("Language set to:", savedLang); // Keep logs for now
-  }, [tg]);
 
-  // 2. Draw Spinner Effect
+    // Cleanup timeout
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, []); // Run only ONCE on mount
+
+  // 2. Effect for Telegram Specific Setup (Theme, Back Button) - runs when `tg` state updates
+  useEffect(() => {
+    if (!tg) {
+      // If tg object is not available, apply default styles
+      applyCssVariables({});
+      return; // Exit if Telegram object isn't ready
+    }
+
+    // Apply initial theme
+    setThemeParams(tg.themeParams || {});
+    applyCssVariables(tg.themeParams || {});
+
+    // Setup theme listener
+    const themeUpdateHandler = () => {
+      const currentParams = tg.themeParams || {};
+      setThemeParams(currentParams);
+      applyCssVariables(currentParams);
+    };
+    tg.onEvent("themeChanged", themeUpdateHandler);
+
+    // Setup Back Button
+    tg.BackButton.show();
+    const backButtonHandler = () => {
+      window.history.back(); // Or use react-router navigate(-1) if available
+    };
+    tg.BackButton.onClick(backButtonHandler);
+
+    // Cleanup listeners
+    return () => {
+      tg.offEvent("themeChanged", themeUpdateHandler);
+      if (tg.BackButton.isVisible) {
+        tg.BackButton.offClick(backButtonHandler);
+        tg.BackButton.hide();
+      }
+    };
+  }, [tg]); // Rerun this effect ONLY when the `tg` object becomes available/changes
+
+  // 3. Draw Spinner Effect - runs when options, language, or theme change
   useEffect(() => {
     const drawSpinner = () => {
       const canvas = canvasRef.current;
@@ -332,13 +354,21 @@ export function SpinnerPage() {
       const insideRadius = 0;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const currentSecondaryBg = themeParams.secondary_bg_color || "#f0f0f0";
-      const currentBtnTextColor = themeParams.button_text_color || "#ffffff";
-      const currentHintColor = themeParams.hint_color || "#999999";
+      // Use state themeParams, provide fallbacks
+      const currentTheme =
+        Object.keys(themeParams).length > 0
+          ? themeParams
+          : {
+              secondary_bg_color: "#f0f0f0",
+              button_text_color: "#ffffff",
+              hint_color: "#999999",
+            };
+      const currentBtnTextColor = currentTheme.button_text_color;
+      const currentHintColor = currentTheme.hint_color;
 
       ctx.strokeStyle = currentHintColor;
       ctx.lineWidth = 1;
-      ctx.font = "bold 16px Inter, sans-serif";
+      ctx.font = "bold 16px Inter, sans-serif"; // Default size
 
       for (let i = 0; i < numOptions; i++) {
         const angle = i * arc;
@@ -348,7 +378,7 @@ export function SpinnerPage() {
         ctx.arc(160, 160, outsideRadius, angle, angle + arc, false);
         ctx.arc(160, 160, insideRadius, angle + arc, angle, true);
         ctx.fill();
-        ctx.stroke();
+        ctx.stroke(); // Draw border between segments
 
         ctx.save();
         ctx.fillStyle = currentBtnTextColor;
@@ -358,56 +388,48 @@ export function SpinnerPage() {
         );
         ctx.rotate(angle + arc / 2 + Math.PI / 2);
         const text = numOptions > 7 ? (i + 1).toString() : options[i];
-        const maxTextWidth = arc * textRadius * 0.85;
+        const maxTextWidth = arc * textRadius * 0.8; // Slightly smaller max width
         let displayText = text;
 
+        // Adjust font size dynamically, especially for shorter lists
         let fontSize = 16;
-        if (numOptions <= 10) {
-          while (
-            ctx.measureText(displayText).width > maxTextWidth &&
-            fontSize > 10
-          ) {
-            fontSize -= 1;
-            ctx.font = `bold ${fontSize}px Inter, sans-serif`;
-            if (ctx.measureText(text).width > maxTextWidth && text.length > 5) {
-              displayText =
-                text.substring(
-                  0,
-                  Math.floor(
-                    (text.length * maxTextWidth) / ctx.measureText(text).width
-                  ) - 1
-                ) + "…";
-            } else {
-              displayText = text;
-            }
+        if (numOptions < 5) fontSize = 18;
+        else if (numOptions > 10) fontSize = 14;
+        if (numOptions > 14) fontSize = 12;
+
+        ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+
+        // Truncate text if it's too wide
+        if (ctx.measureText(text).width > maxTextWidth && text.length > 3) {
+          // Check length > 3
+          // Estimate truncation point
+          let charsToKeep = Math.floor(
+            (text.length * maxTextWidth) / ctx.measureText(text).width
+          );
+          // Ensure at least 1 char + ellipsis if possible
+          displayText = text.substring(0, Math.max(1, charsToKeep - 1)) + "…";
+          // Re-check width after truncation
+          if (ctx.measureText(displayText).width > maxTextWidth) {
+            displayText = text.substring(0, 1) + "…"; // Fallback to 1 char + ellipsis
           }
-        } else if (
-          ctx.measureText(displayText).width > maxTextWidth &&
-          text.length > 5
-        ) {
-          displayText =
-            text.substring(
-              0,
-              Math.floor(
-                (text.length * maxTextWidth) / ctx.measureText(text).width
-              ) - 1
-            ) + "…";
         }
 
         ctx.fillText(displayText, -ctx.measureText(displayText).width / 2, 0);
         ctx.restore();
+        // Reset font for next loop iteration measurement
         ctx.font = "bold 16px Inter, sans-serif";
       }
     };
 
     drawSpinner();
 
+    // Save options whenever they change
     if (options.length > 0 || localStorage.getItem("decisionSpinnerOptions")) {
       localStorage.setItem("decisionSpinnerOptions", JSON.stringify(options));
     }
-  }, [options, lang, themeParams]);
+  }, [options, lang, themeParams]); // Rerun draw when themeParams change too
 
-  // 3. Update document title
+  // 4. Update document title
   useEffect(() => {
     document.title = t.title;
     localStorage.setItem("decisionSpinnerLang", lang);
@@ -437,27 +459,39 @@ export function SpinnerPage() {
 
     setIsSpinning(true);
     setResult("");
+    if (tg) tg.HapticFeedback.impactOccurred("light"); // Haptic feedback on spin start
 
-    const randomSpins = Math.floor(Math.random() * 4) + 8;
+    const randomSpins = Math.floor(Math.random() * 4) + 8; // More spins
     const degrees = Math.random() * 360;
     const totalDegrees = randomSpins * 360 + degrees;
 
     const newVisualRotation = spinRotationRef.current + totalDegrees;
-    spinRotationRef.current = newVisualRotation % 360;
+    spinRotationRef.current = newVisualRotation % 360; // Keep track of current visual angle
 
     const canvas = canvasRef.current;
-    canvas.style.transition = "transform 4.5s cubic-bezier(0.1, 1, 0.3, 1)";
+    canvas.style.transition = "transform 4.5s cubic-bezier(0.1, 1, 0.3, 1)"; // Smooth easing
     canvas.style.transform = `rotate(${newVisualRotation}deg)`;
 
+    // Calculate result slightly before animation ends for perceived responsiveness
     setTimeout(() => {
-      const finalAngle = newVisualRotation % 360;
+      const finalVisualAngle = newVisualRotation % 360; // The angle the canvas WILL be at
       const arcSize = 360 / options.length;
-      const winningAngle = (360 - finalAngle + 270) % 360;
+      // Angle under the top pointer (0 degrees relative to canvas rotation)
+      // Adjusting for the pointer being at the top (270 degrees in canvas coordinates)
+      const winningAngle = (360 - finalVisualAngle + 270) % 360;
       const index = Math.floor(winningAngle / arcSize);
 
-      setResult(options[index]);
+      // Ensure index is valid
+      const winnerIndex = index >= 0 && index < options.length ? index : 0;
+      setResult(options[winnerIndex]);
+
+      // Haptic feedback for result
+      if (tg) tg.HapticFeedback.notificationOccurred("success");
+    }, 4400); // 100ms before animation finishes
+
+    // Reset spinning state after animation fully completes
+    setTimeout(() => {
       setIsSpinning(false);
-      tg?.HapticFeedback.notificationOccurred("success");
     }, 4500);
   };
 
@@ -493,27 +527,41 @@ export function SpinnerPage() {
 
         if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
           const jsonText = result.candidates[0].content.parts[0].text;
-          return JSON.parse(jsonText);
+          try {
+            return JSON.parse(jsonText);
+          } catch (parseError) {
+            console.error(
+              "Failed to parse Gemini JSON response:",
+              jsonText,
+              parseError
+            );
+            throw new Error("Invalid JSON received from API.");
+          }
         } else {
           console.error("Invalid response structure:", result);
           throw new Error("Invalid response structure from API.");
         }
       } catch (error) {
         console.error(`Gemini API call attempt ${attempt} failed:`, error);
-        if (attempt === maxRetries) return null;
+        if (attempt === maxRetries) return null; // Return null after max retries
+        // Exponential backoff
         await new Promise((resolve) =>
-          setTimeout(resolve, Math.pow(2, attempt) * 1000)
+          setTimeout(
+            resolve,
+            Math.pow(2, attempt) * 1000 + Math.random() * 1000
+          )
         );
       }
     }
-    return null;
+    return null; // Should not be reached if retries > 0, but good practice
   };
 
   const handleGeminiSuggestions = async () => {
     setGeminiLoading(true);
-    tg?.MainButton.showProgress();
+    if (tg) tg.MainButton.showProgress();
     let prompt;
     if (options.length > 0) {
+      // Limit the number of options sent to avoid overly long prompts
       const optionsString = options.slice(0, 15).join(", ");
       prompt = t.geminiPrompt.replace("{OPTIONS}", optionsString);
     } else {
@@ -523,89 +571,112 @@ export function SpinnerPage() {
     try {
       const suggestions = await callGeminiApi(prompt);
       if (suggestions && Array.isArray(suggestions)) {
+        // Filter suggestions: ensure they are strings, trim, check length, check uniqueness (case-insensitive)
         const newOptions = suggestions
           .map((idea) => (typeof idea === "string" ? idea.trim() : ""))
-          .filter((idea) => idea.length > 0 && idea.length < 50)
+          .filter((idea) => idea.length > 0 && idea.length < 50) // Basic length check
+          .filter(
+            (idea, index, self) =>
+              idea &&
+              self.findIndex((i) => i.toLowerCase() === idea.toLowerCase()) ===
+                index
+          ) // Unique within suggestions
           .filter(
             (idea) =>
               !options.some((opt) => opt.toLowerCase() === idea.toLowerCase())
-          );
+          ); // Unique vs existing options
 
         if (newOptions.length > 0) {
           setOptions((prevOptions) => [
             ...prevOptions,
             ...newOptions.slice(0, 5),
-          ]);
+          ]); // Add up to 5 new unique options
+          if (tg) tg.HapticFeedback.notificationOccurred("success");
         } else {
+          // Inform user if no *new* suggestions were found
           if (tg)
             tg.showPopup({
               title: "Info",
               message: "No new unique suggestions found.",
             });
-          else alert("No new unique suggestions found.");
+          else alert("No new unique suggestions found."); // Fallback for browser
+          if (tg) tg.HapticFeedback.notificationOccurred("warning");
         }
 
+        // Small visual feedback on canvas
         if (canvasRef.current) {
           canvasRef.current.style.transform = `${
             canvasRef.current.style.transform || ""
           } scale(1.05)`;
           setTimeout(() => {
             if (canvasRef.current) {
-              canvasRef.current.style.transform =
-                canvasRef.current.style.transform.replace(" scale(1.05)", "");
+              canvasRef.current.style.transform = (
+                canvasRef.current.style.transform || ""
+              ).replace(" scale(1.05)", "");
             }
           }, 200);
         }
       } else {
-        throw new Error(
-          "Failed to get valid suggestions or all retries failed."
-        );
+        // This handles null response from callGeminiApi after retries or if suggestions are not an array
+        throw new Error("Failed to get valid suggestions after retries.");
       }
     } catch (error) {
       console.error("Error handling Gemini suggestions:", error);
+      const errorMessage = `${t.geminiError} ${error.message || ""}`.trim();
       if (tg) {
-        tg.showPopup({ title: "Error", message: t.geminiError });
+        tg.showPopup({ title: "Error", message: errorMessage });
+        tg.HapticFeedback.notificationOccurred("error");
       } else {
-        alert(t.geminiError);
+        alert(errorMessage); // Fallback for browser
       }
     } finally {
       setGeminiLoading(false);
-      tg?.MainButton.hideProgress();
+      if (tg) tg.MainButton.hideProgress();
     }
   };
 
   // --- Telegram Stars (requestDonation) ---
   const requestDonation = async (amount) => {
-    if (!tg || !tg.initData) {
-      console.warn(
-        "Telegram WebApp context not available or initData missing."
-      );
-      alert("This feature is only available within Telegram.");
+    if (!isTelegramEnvironment || !tg || !tg.initData) {
+      // Check the flag and tg object
+      console.warn("Telegram environment not detected or initData missing.");
+      // Don't show alert if maybe just loading still
+      if (!tg) console.log("Attempted donation before TG object was ready.");
+      else alert("Donations only available within Telegram.");
       return;
     }
 
     setStarsLoading(true);
     tg.MainButton.showProgress();
+    if (tg) tg.HapticFeedback.impactOccurred("light");
 
     try {
       const response = await fetch(`${BOT_SERVER_URL}/create-invoice`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // Send necessary data for server-side verification
         body: JSON.stringify({ amount: amount, initData: tg.initData }),
       });
 
       if (!response.ok) {
         const errorBody = await response.text();
         console.error("Invoice creation failed:", response.status, errorBody);
-        throw new Error(`Failed to create invoice. Status: ${response.status}`);
+        throw new Error(
+          `Failed to create invoice. Server responded with status: ${response.status}`
+        );
       }
       const { invoiceUrl } = await response.json();
-      if (!invoiceUrl)
-        throw new Error("Received empty invoice URL from server.");
+      if (!invoiceUrl) {
+        console.error("Server response missing invoiceUrl");
+        throw new Error("Received invalid invoice data from server.");
+      }
 
+      // Open the Telegram Stars invoice
       tg.openInvoice(invoiceUrl, (status) => {
-        setStarsLoading(false);
+        // This callback runs *after* the invoice is closed
+        setStarsLoading(false); // Update state regardless of status
         tg.MainButton.hideProgress();
+
         if (status === "paid") {
           tg.showPopup({
             title: t.paymentSuccess,
@@ -616,78 +687,113 @@ export function SpinnerPage() {
         } else if (status === "failed") {
           tg.showPopup({
             title: t.paymentFailed,
-            message: t.paymentFailedMsg + " (Failed)",
+            message: t.paymentFailedMsg + " (Status: Failed)",
             buttons: [{ type: "ok" }],
           });
           tg.HapticFeedback.notificationOccurred("error");
         } else if (status === "cancelled") {
+          // Optionally provide feedback for cancellation
+          // console.log("Payment cancelled by user.");
           tg.HapticFeedback.notificationOccurred("warning");
         } else {
-          console.warn("Unexpected invoice status:", status);
+          // Handle unexpected statuses
+          console.warn("Unexpected invoice status received:", status);
+          tg.showPopup({ title: "Info", message: `Payment status: ${status}` });
           tg.HapticFeedback.notificationOccurred("warning");
         }
       });
     } catch (error) {
-      console.error("Donation error:", error);
-      tg.showPopup({
-        title: "Error",
-        message: `Could not process donation: ${error.message}`,
-      });
-      setStarsLoading(false);
+      console.error("Donation request error:", error);
+      // Provide more specific feedback if possible
+      const userMessage = `Could not process donation: ${
+        error.message || "Unknown error"
+      }. Please try again later.`;
+      tg.showPopup({ title: "Error", message: userMessage });
+      setStarsLoading(false); // Ensure loading state is reset on error
       tg.MainButton.hideProgress();
       tg.HapticFeedback.notificationOccurred("error");
     }
   };
 
   // --- Render ---
-  // console.log("Rendering SpinnerPage. tg:", tg, "tg.platform:", tg?.platform); // Keep logs for now
-  // Simplify the condition to just check if tg object exists
-  const shouldRenderStars = !!tg; // Use !!tg to convert to boolean
-  // console.log("Should render Stars section (simplified)?", shouldRenderStars); // Keep logs for now
 
   return (
     <React.Fragment>
       {/* --- STYLE DEFINITIONS --- */}
       <style>{`
-                /* ... (styles remain the same) ... */
+                /* Base body styling based on theme */
                 body {
                     background-color: var(--tg-theme-bg-color, #ffffff);
+                    color: var(--tg-theme-text-color, #000000); /* Apply text color globally */
+                    margin: 0; /* Ensure no default body margin */
+                    font-family: Inter, sans-serif; /* Consistent font */
+                    overscroll-behavior: none; /* Prevent pull-to-refresh */
                 }
+                 /* Ensure full height for layout */
+                html, body, #root {
+                    height: 100%;
+                }
+
+                /* Card styling */
                 .card {
                     background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
                     color: var(--tg-theme-text-color, #000000);
                 }
+                /* Input and Select styling */
                 .input-field, .lang-select {
                     background-color: var(--tg-theme-bg-color, #ffffff);
                     color: var(--tg-theme-text-color, #000000);
                     border: 1px solid var(--tg-theme-hint-color, #999999);
+                    border-radius: 0.5rem; /* Ensure consistent rounding */
                 }
-                 .lang-select:focus, .input-field:focus { /* Basic focus outline */
+                 .lang-select:focus, .input-field:focus {
                      outline: 2px solid var(--tg-theme-button-color, #007aff);
                      outline-offset: 1px;
+                     border-color: transparent; /* Hide default border on focus */
                  }
+                /* Button styling */
                 .button-primary {
                     background-color: var(--tg-theme-button-color, #007aff);
                     color: var(--tg-theme-button-text-color, #ffffff);
+                    border-radius: 0.5rem;
                 }
                  .button-primary:disabled {
                      opacity: 0.6;
                      cursor: not-allowed;
                  }
+                 .button-primary:hover:not(:disabled) { /* Add hover effect */
+                    filter: brightness(110%);
+                 }
+
                 .button-secondary {
                     background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
                     color: var(--tg-theme-text-color, #000000);
                     border: 1px solid var(--tg-theme-hint-color, #999999);
+                    border-radius: 0.5rem;
                 }
                  .button-secondary:disabled {
-                    opacity: 0.6; /* Dim disabled secondary buttons */
+                    opacity: 0.6;
                     cursor: not-allowed;
                  }
+                 .button-secondary:hover:not(:disabled) {
+                    filter: brightness(95%);
+                 }
+
+                /* Option Tag styling */
                 .option-tag {
                     background-color: var(--tg-theme-bg-color, #ffffff);
                     color: var(--tg-theme-text-color, #000000);
                     border: 1px solid var(--tg-theme-hint-color, #999999);
+                    /* height: 2.25rem; */ /* Fixed height for consistency */
+                    align-items: center; /* Vertically center content */
+                    box-sizing: border-box; /* Include padding/border in height */
                 }
+                .option-tag button { /* Ensure remove button is easy to click */
+                    padding-left: 0.25rem;
+                    padding-right: 0.25rem;
+                }
+
+                /* Spinner Arrow */
                 .spinner-arrow {
                     width: 0;
                     height: 0;
@@ -695,30 +801,38 @@ export function SpinnerPage() {
                     border-right: 15px solid transparent;
                     border-top: 25px solid var(--tg-theme-button-color, #007aff);
                 }
+                /* Legend styling */
                 #options-legend ol li {
                      color: var(--tg-theme-text-color, #000000);
                 }
                 #options-legend {
                      background-color: var(--tg-theme-bg-color, #ffffff);
-                     border-color: var(--tg-theme-hint-color, #999999);
+                     border: 1px solid var(--tg-theme-hint-color, #999999);
                 }
+                /* Remove scrollbar */
+                 #options-legend::-webkit-scrollbar { display: none; }
+                 #options-legend { -ms-overflow-style: none; scrollbar-width: none; }
+
                 /* Ensure Tailwind focus rings use theme color */
                 .focus\\:ring-indigo-500:focus {
                      --tw-ring-color: var(--tg-theme-button-color, #007aff);
-                     box-shadow: 0 0 0 2px var(--tw-ring-color); /* Manual ring for better compatibility */
-                     outline: none; /* Remove default outline */
+                     box-shadow: 0 0 0 2px var(--tw-ring-color);
+                     outline: none;
                 }
             `}</style>
 
-      <div
-        className="flex flex-col items-center justify-start min-h-screen p-4 pt-8 overflow-x-hidden"
-        style={{ backgroundColor: "var(--tg-theme-bg-color)" }}
-      >
+      {/* --- VISUAL DEBUGGER --- */}
+      {/* <p style={{ position: 'fixed', top: 0, left: 0, background: 'rgba(0,0,0,0.7)', color: 'lime', padding: '2px 5px', fontSize: '10px', zIndex: 1000 }}>
+                 TG Env: {isTelegramEnvironment ? 'Yes' : 'No'} | TG Obj: {tg ? 'Set' : 'Null'}
+             </p> */}
+      {/* Uncomment the above <p> tag for visual debugging if needed */}
+
+      <div className="flex flex-col items-center justify-start min-h-screen p-4 pt-8 overflow-x-hidden">
         {/* Language Selector */}
         <div className="w-full max-w-md mx-auto mb-4">
           <select
             id="lang-select"
-            className="lang-select w-full rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500"
+            className="lang-select w-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500"
             value={lang}
             onChange={(e) => setLang(e.target.value)}
           >
@@ -766,7 +880,7 @@ export function SpinnerPage() {
           {/* Spin Button */}
           <button
             id="spin-btn"
-            className="button-primary w-full font-bold py-3 px-4 rounded-lg text-lg transition transform active:scale-95 disabled:opacity-60 shadow-md"
+            className="button-primary w-full font-bold py-3 px-4 text-lg transition transform active:scale-95 disabled:opacity-60 shadow-md"
             onClick={handleSpin}
             disabled={isSpinning || options.length < 2}
           >
@@ -780,13 +894,13 @@ export function SpinnerPage() {
                 type="text"
                 id="option-input"
                 ref={optionInputRef}
-                className="input-field flex-grow rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500"
+                className="input-field flex-grow px-4 py-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500"
                 placeholder={t.placeholder}
                 onKeyPress={handleInputKeyPress}
               />
               <button
                 id="add-btn"
-                className="button-secondary font-bold py-2 px-4 rounded-lg transition transform active:scale-95"
+                className="button-secondary font-bold py-2 px-4 transition transform active:scale-95"
                 onClick={handleAddOption}
               >
                 {t.addButton}
@@ -796,7 +910,7 @@ export function SpinnerPage() {
             {/* Gemini Feature */}
             <button
               id="gemini-btn"
-              className="button-primary w-full font-bold py-2 px-4 rounded-lg text-sm mt-3 flex items-center justify-center gap-2 transition transform active:scale-95 disabled:opacity-60 shadow-sm"
+              className="button-primary w-full font-bold py-2 px-4 text-sm mt-3 flex items-center justify-center gap-2 transition transform active:scale-95 disabled:opacity-60 shadow-sm"
               onClick={handleGeminiSuggestions}
               disabled={geminiLoading}
             >
@@ -838,11 +952,11 @@ export function SpinnerPage() {
                 {options.map((option, index) => (
                   <div
                     key={index}
-                    className="option-tag rounded-full px-3 py-1 flex items-center gap-2 text-sm"
+                    className="option-tag rounded-full px-3 py-1 flex items-center gap-1 text-sm" // Reduced gap
                   >
                     <span className="truncate max-w-[100px]">{option}</span>
                     <button
-                      className="text-red-500 hover:text-red-700 font-bold leading-none"
+                      className="text-red-500 hover:text-red-700 font-bold leading-none text-lg" // Larger click target
                       onClick={() => handleRemoveOption(index)}
                       aria-label={`Remove ${option}`}
                     >
@@ -854,7 +968,7 @@ export function SpinnerPage() {
             ) : (
               <div
                 id="options-legend"
-                className="text-left w-full max-h-32 overflow-y-auto border rounded-lg p-2"
+                className="text-left w-full max-h-32 overflow-y-auto border rounded-lg p-2 mt-2"
               >
                 <ol className="list-decimal list-inside space-y-1 text-sm">
                   {options.map((option, index) => (
@@ -880,9 +994,8 @@ export function SpinnerPage() {
           </div>
         </div>
 
-        {/* Telegram Stars Donation Section */}
-        {/* Simplified condition - just check if tg exists */}
-        {shouldRenderStars && (
+        {/* Telegram Stars Donation Section - Use isTelegramEnvironment flag */}
+        {isTelegramEnvironment && (
           <div className="card w-full max-w-md mx-auto rounded-2xl p-6 text-center mt-4 shadow-lg mb-4">
             <h2 className="text-xl font-bold mb-1">{t.supportTitle}</h2>
             <p
@@ -895,14 +1008,14 @@ export function SpinnerPage() {
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => requestDonation(100)}
-                className="button-secondary p-3 rounded-lg text-sm transition transform active:scale-95 disabled:opacity-60"
+                className="button-secondary p-3 text-sm transition transform active:scale-95 disabled:opacity-60"
                 disabled={starsLoading}
               >
                 {starsLoading ? "..." : "☕ 100 ✨"}
               </button>
               <button
                 onClick={() => requestDonation(500)}
-                className="button-secondary p-3 rounded-lg text-sm transition transform active:scale-95 disabled:opacity-60"
+                className="button-secondary p-3 text-sm transition transform active:scale-95 disabled:opacity-60"
                 disabled={starsLoading}
               >
                 {starsLoading ? "..." : "🚀 500 ✨"}
