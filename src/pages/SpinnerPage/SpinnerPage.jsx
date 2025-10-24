@@ -822,9 +822,21 @@ export function SpinnerPage() {
             `}</style>
 
       {/* --- VISUAL DEBUGGER --- */}
-      {/* <p style={{ position: 'fixed', top: 0, left: 0, background: 'rgba(0,0,0,0.7)', color: 'lime', padding: '2px 5px', fontSize: '10px', zIndex: 1000 }}>
-                 TG Env: {isTelegramEnvironment ? 'Yes' : 'No'} | TG Obj: {tg ? 'Set' : 'Null'}
-             </p> */}
+      <p
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          background: "rgba(0,0,0,0.7)",
+          color: "lime",
+          padding: "2px 5px",
+          fontSize: "10px",
+          zIndex: 1000,
+        }}
+      >
+        TG Env: {isTelegramEnvironment ? "Yes" : "No"} | TG Obj:{" "}
+        {tg ? "Set" : "Null"}
+      </p>
       {/* Uncomment the above <p> tag for visual debugging if needed */}
 
       <div className="flex flex-col items-center justify-start min-h-screen p-4 pt-8 overflow-x-hidden">
