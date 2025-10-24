@@ -909,7 +909,7 @@ export function SpinnerPage() {
         >
           {" "}
           {/* Reduced margin */}
-          <p>{t.footer}</p>
+          {/* <p>{t.footer}</p> */}
         </footer>
       </div>
     </React.Fragment>
