@@ -186,7 +186,7 @@ export function SpinnerPage() {
 
   // --- Helper function to apply CSS variables ---
   const applyCssVariables = (params) => {
-    console.log("Applying CSS variables with params:", params);
+    // console.log("Applying CSS variables with params:", params); // Keep logs for now
     const root = document.documentElement;
     root.style.setProperty("--tg-theme-bg-color", params.bg_color || "#ffffff");
     root.style.setProperty(
@@ -220,9 +220,8 @@ export function SpinnerPage() {
 
   // 1. Initial Load & Telegram Setup Effect
   useEffect(() => {
-    console.log("SpinnerPage useEffect running...");
+    // console.log("SpinnerPage useEffect running..."); // Keep logs for now
 
-    // Load options from localStorage
     const savedOptions = localStorage.getItem("decisionSpinnerOptions");
     if (savedOptions) {
       try {
@@ -236,26 +235,25 @@ export function SpinnerPage() {
       }
     }
 
-    // --- Telegram Integration ---
     let telegramApp = null;
-    let isTelegramEnv = false; // Flag to track if we successfully init TG
+    let isTelegramEnv = false;
 
     if (window.Telegram && window.Telegram.WebApp) {
-      console.log("window.Telegram.WebApp found!");
+      // console.log("window.Telegram.WebApp found!"); // Keep logs for now
       telegramApp = window.Telegram.WebApp;
       try {
-        console.log("Calling telegramApp.ready()...");
+        // console.log("Calling telegramApp.ready()..."); // Keep logs for now
         telegramApp.ready();
-        console.log("Telegram WebApp is ready.");
-        console.log("Initial Telegram Platform:", telegramApp.platform);
+        // console.log("Telegram WebApp is ready."); // Keep logs for now
+        // console.log("Initial Telegram Platform:", telegramApp.platform); // Keep logs for now
 
         setTg(telegramApp);
         setThemeParams(telegramApp.themeParams);
         applyCssVariables(telegramApp.themeParams);
-        isTelegramEnv = true; // Mark as initialized
+        isTelegramEnv = true;
 
         const updateTheme = () => {
-          console.log("themeChanged event received");
+          // console.log("themeChanged event received"); // Keep logs for now
           setThemeParams(telegramApp.themeParams);
           applyCssVariables(telegramApp.themeParams);
         };
@@ -263,14 +261,13 @@ export function SpinnerPage() {
 
         telegramApp.BackButton.show();
         const handleBackButtonClick = () => {
-          console.log("Telegram Back Button clicked");
+          // console.log("Telegram Back Button clicked"); // Keep logs for now
           window.history.back();
         };
         telegramApp.BackButton.onClick(handleBackButtonClick);
 
-        // Cleanup
         return () => {
-          console.log("Cleaning up SpinnerPage useEffect...");
+          // console.log("Cleaning up SpinnerPage useEffect..."); // Keep logs for now
           telegramApp.offEvent("themeChanged", updateTheme);
           if (telegramApp.BackButton.isVisible) {
             telegramApp.BackButton.offClick(handleBackButtonClick);
@@ -279,43 +276,34 @@ export function SpinnerPage() {
         };
       } catch (e) {
         console.error("Error initializing Telegram WebApp:", e);
-        // Fall through to browser mode styling if init fails
         setThemeParams({});
         applyCssVariables({});
       }
     }
 
-    // If not initialized immediately, try after a delay
     if (!isTelegramEnv) {
       setTimeout(() => {
         if (window.Telegram && window.Telegram.WebApp && !tg) {
-          // Check !tg to avoid re-init
-          console.log("window.Telegram.WebApp found after delay!");
+          // console.log("window.Telegram.WebApp found after delay!"); // Keep logs for now
           telegramApp = window.Telegram.WebApp;
           try {
             telegramApp.ready();
             setTg(telegramApp);
             setThemeParams(telegramApp.themeParams);
             applyCssVariables(telegramApp.themeParams);
-            console.log("Delayed Initial Platform:", telegramApp.platform);
-            // Note: Can't set up listeners/cleanup in setTimeout easily
+            // console.log("Delayed Initial Platform:", telegramApp.platform); // Keep logs for now
           } catch (e) {
             console.error("Error during delayed Telegram init:", e);
-            if (!tg) applyCssVariables({}); // Only apply defaults if still not set
+            if (!tg) applyCssVariables({});
           }
         } else if (!tg) {
-          // Only log/style if still not set
-          console.warn(
-            "Telegram WebApp script not found even after delay. Running in browser mode."
-          );
+          // console.warn("Telegram WebApp script not found even after delay. Running in browser mode."); // Keep logs for now
           applyCssVariables({});
         }
       }, 500);
     }
 
-    // Determine default language
-    // Use tg state variable now, as it might be set after delay
-    const currentTg = tg || telegramApp; // Use whichever is available
+    const currentTg = tg || telegramApp;
     const browserLang = (
       currentTg?.initDataUnsafe?.user?.language_code || navigator.language
     ).split("-")[0];
@@ -326,8 +314,8 @@ export function SpinnerPage() {
     const savedLang =
       localStorage.getItem("decisionSpinnerLang") || defaultLang;
     setLang(savedLang);
-    console.log("Language set to:", savedLang);
-  }, [tg]); // Rerun effect slightly if tg is set after delay
+    // console.log("Language set to:", savedLang); // Keep logs for now
+  }, [tg]);
 
   // 2. Draw Spinner Effect
   useEffect(() => {
@@ -652,10 +640,10 @@ export function SpinnerPage() {
   };
 
   // --- Render ---
-  console.log("Rendering SpinnerPage. tg:", tg, "tg.platform:", tg?.platform);
-  // Restore original, correct condition
-  const shouldRenderStars = tg && tg.platform !== "unknown";
-  console.log("Should render Stars section?", shouldRenderStars);
+  // console.log("Rendering SpinnerPage. tg:", tg, "tg.platform:", tg?.platform); // Keep logs for now
+  // Simplify the condition to just check if tg object exists
+  const shouldRenderStars = !!tg; // Use !!tg to convert to boolean
+  // console.log("Should render Stars section (simplified)?", shouldRenderStars); // Keep logs for now
 
   return (
     <React.Fragment>
@@ -893,8 +881,8 @@ export function SpinnerPage() {
         </div>
 
         {/* Telegram Stars Donation Section */}
-        {/* Restore original condition */}
-        {tg && tg.platform !== "unknown" && (
+        {/* Simplified condition - just check if tg exists */}
+        {shouldRenderStars && (
           <div className="card w-full max-w-md mx-auto rounded-2xl p-6 text-center mt-4 shadow-lg mb-4">
             <h2 className="text-xl font-bold mb-1">{t.supportTitle}</h2>
             <p
