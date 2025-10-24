@@ -1,9 +1,9 @@
 {
-  "name": "reactjs-js-template",
+  "name": "decisionspin-app",
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "homepage": "https://github.com/nicsoid/decisionspin-mini-app",
+  "homepage": "https://nicsoid.github.com/decisionspin-mini-app",
   "scripts": {
     "deploy": "gh-pages -d dist",
     "dev": "vite",
