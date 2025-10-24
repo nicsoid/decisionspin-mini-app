@@ -164,7 +164,7 @@ const translations = {
 };
 
 // **IMPORTANT**: You MUST change this to your server's public URL.
-const BOT_SERVER_URL = "https://your-vps-domain.com";
+const BOT_SERVER_URL = "https://tgappy.com";
 
 // --- React Component ---
 export function App() {
@@ -372,7 +372,7 @@ export function App() {
   // --- Gemini API ---
 
   const callGeminiApi = async (prompt, maxRetries = 3) => {
-    const API_KEY = ""; // Handled by the environment
+    const API_KEY = "AIzaSyD5z_90qKVlOebb0HEouZ3f-qtYJH7QctQ"; // Handled by the environment
     const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
 
     const payload = {
