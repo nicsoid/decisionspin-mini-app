@@ -157,10 +157,9 @@ const colors = [
   "#f43f5e",
 ];
 // Ensure this matches your actual deployed bot server URL
-const BOT_SERVER_URL = "https://tgappy.com"; // ** IMPORTANT: Update this **
+const BOT_SERVER_URL = "https://your-vps-domain.com"; // ** IMPORTANT: Update this **
 
 // --- React Component ---
-// Renamed from App to SpinnerPage and removed routing/AppRoot
 export function SpinnerPage() {
   // --- State ---
   const [options, setOptions] = useState([
@@ -187,8 +186,8 @@ export function SpinnerPage() {
 
   // --- Helper function to apply CSS variables ---
   const applyCssVariables = (params) => {
+    console.log("Applying CSS variables with params:", params);
     const root = document.documentElement;
-    // Use the property names directly from telegramApp.themeParams
     root.style.setProperty("--tg-theme-bg-color", params.bg_color || "#ffffff");
     root.style.setProperty(
       "--tg-theme-text-color",
@@ -221,6 +220,8 @@ export function SpinnerPage() {
 
   // 1. Initial Load & Telegram Setup Effect
   useEffect(() => {
+    console.log("SpinnerPage useEffect running...");
+
     // Load options from localStorage
     const savedOptions = localStorage.getItem("decisionSpinnerOptions");
     if (savedOptions) {
@@ -237,40 +238,40 @@ export function SpinnerPage() {
 
     // --- Telegram Integration ---
     let telegramApp = null;
+    let isTelegramEnv = false; // Flag to track if we successfully init TG
+
     if (window.Telegram && window.Telegram.WebApp) {
+      console.log("window.Telegram.WebApp found!");
       telegramApp = window.Telegram.WebApp;
       try {
+        console.log("Calling telegramApp.ready()...");
         telegramApp.ready();
-        // Don't expand here, let the template handle it if needed
+        console.log("Telegram WebApp is ready.");
+        console.log("Initial Telegram Platform:", telegramApp.platform);
+
         setTg(telegramApp);
         setThemeParams(telegramApp.themeParams);
-        applyCssVariables(telegramApp.themeParams); // Apply initial theme CSS
+        applyCssVariables(telegramApp.themeParams);
+        isTelegramEnv = true; // Mark as initialized
 
-        // Function to update theme state and CSS vars
         const updateTheme = () => {
+          console.log("themeChanged event received");
           setThemeParams(telegramApp.themeParams);
           applyCssVariables(telegramApp.themeParams);
         };
-
-        // Listen for theme changes
         telegramApp.onEvent("themeChanged", updateTheme);
 
-        // --- IMPORTANT: Back Button for Page Component ---
-        // If this page should have a back button handled by Telegram
         telegramApp.BackButton.show();
         const handleBackButtonClick = () => {
-          // You might need to navigate back using your template's router
-          // For now, let's log it or use window history
           console.log("Telegram Back Button clicked");
-          // Example: window.history.back();
-          // Or integrate with react-router-dom's navigate(-1) if possible
+          window.history.back();
         };
         telegramApp.BackButton.onClick(handleBackButtonClick);
 
-        // Cleanup function for useEffect
+        // Cleanup
         return () => {
+          console.log("Cleaning up SpinnerPage useEffect...");
           telegramApp.offEvent("themeChanged", updateTheme);
-          // Hide and remove listener for back button when leaving the page
           if (telegramApp.BackButton.isVisible) {
             telegramApp.BackButton.offClick(handleBackButtonClick);
             telegramApp.BackButton.hide();
@@ -278,20 +279,45 @@ export function SpinnerPage() {
         };
       } catch (e) {
         console.error("Error initializing Telegram WebApp:", e);
+        // Fall through to browser mode styling if init fails
         setThemeParams({});
-        applyCssVariables({}); // Apply default CSS Variables
+        applyCssVariables({});
       }
-    } else {
-      console.warn(
-        "Telegram WebApp script not found or not ready. Running in browser mode."
-      );
-      setThemeParams({});
-      applyCssVariables({}); // Apply default CSS Variables
+    }
+
+    // If not initialized immediately, try after a delay
+    if (!isTelegramEnv) {
+      setTimeout(() => {
+        if (window.Telegram && window.Telegram.WebApp && !tg) {
+          // Check !tg to avoid re-init
+          console.log("window.Telegram.WebApp found after delay!");
+          telegramApp = window.Telegram.WebApp;
+          try {
+            telegramApp.ready();
+            setTg(telegramApp);
+            setThemeParams(telegramApp.themeParams);
+            applyCssVariables(telegramApp.themeParams);
+            console.log("Delayed Initial Platform:", telegramApp.platform);
+            // Note: Can't set up listeners/cleanup in setTimeout easily
+          } catch (e) {
+            console.error("Error during delayed Telegram init:", e);
+            if (!tg) applyCssVariables({}); // Only apply defaults if still not set
+          }
+        } else if (!tg) {
+          // Only log/style if still not set
+          console.warn(
+            "Telegram WebApp script not found even after delay. Running in browser mode."
+          );
+          applyCssVariables({});
+        }
+      }, 500);
     }
 
     // Determine default language
+    // Use tg state variable now, as it might be set after delay
+    const currentTg = tg || telegramApp; // Use whichever is available
     const browserLang = (
-      telegramApp?.initDataUnsafe?.user?.language_code || navigator.language
+      currentTg?.initDataUnsafe?.user?.language_code || navigator.language
     ).split("-")[0];
     let defaultLang = "en";
     if (translations.hasOwnProperty(browserLang)) {
@@ -300,7 +326,8 @@ export function SpinnerPage() {
     const savedLang =
       localStorage.getItem("decisionSpinnerLang") || defaultLang;
     setLang(savedLang);
-  }, []); // Run only once on mount
+    console.log("Language set to:", savedLang);
+  }, [tg]); // Rerun effect slightly if tg is set after delay
 
   // 2. Draw Spinner Effect
   useEffect(() => {
@@ -317,13 +344,12 @@ export function SpinnerPage() {
       const insideRadius = 0;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      // Use state themeParams, fallback to defaults
       const currentSecondaryBg = themeParams.secondary_bg_color || "#f0f0f0";
       const currentBtnTextColor = themeParams.button_text_color || "#ffffff";
-      const currentHintColor = themeParams.hint_color || "#999999"; // For border
+      const currentHintColor = themeParams.hint_color || "#999999";
 
-      ctx.strokeStyle = currentHintColor; // Use hint color for segment borders
-      ctx.lineWidth = 1; // Thinner border
+      ctx.strokeStyle = currentHintColor;
+      ctx.lineWidth = 1;
       ctx.font = "bold 16px Inter, sans-serif";
 
       for (let i = 0; i < numOptions; i++) {
@@ -334,7 +360,7 @@ export function SpinnerPage() {
         ctx.arc(160, 160, outsideRadius, angle, angle + arc, false);
         ctx.arc(160, 160, insideRadius, angle + arc, angle, true);
         ctx.fill();
-        ctx.stroke(); // Draw border after fill
+        ctx.stroke();
 
         ctx.save();
         ctx.fillStyle = currentBtnTextColor;
@@ -344,20 +370,17 @@ export function SpinnerPage() {
         );
         ctx.rotate(angle + arc / 2 + Math.PI / 2);
         const text = numOptions > 7 ? (i + 1).toString() : options[i];
-        const maxTextWidth = arc * textRadius * 0.85; // Allow slightly more width
+        const maxTextWidth = arc * textRadius * 0.85;
         let displayText = text;
 
-        // Adjust font size dynamically for long text
         let fontSize = 16;
         if (numOptions <= 10) {
-          // Only adjust if not too many segments
           while (
             ctx.measureText(displayText).width > maxTextWidth &&
             fontSize > 10
           ) {
             fontSize -= 1;
             ctx.font = `bold ${fontSize}px Inter, sans-serif`;
-            // Re-truncate if still needed at smaller size
             if (ctx.measureText(text).width > maxTextWidth && text.length > 5) {
               displayText =
                 text.substring(
@@ -374,7 +397,6 @@ export function SpinnerPage() {
           ctx.measureText(displayText).width > maxTextWidth &&
           text.length > 5
         ) {
-          // Truncate for many segments
           displayText =
             text.substring(
               0,
@@ -386,14 +408,12 @@ export function SpinnerPage() {
 
         ctx.fillText(displayText, -ctx.measureText(displayText).width / 2, 0);
         ctx.restore();
-        // Reset font for next segment
         ctx.font = "bold 16px Inter, sans-serif";
       }
     };
 
     drawSpinner();
 
-    // Save options
     if (options.length > 0 || localStorage.getItem("decisionSpinnerOptions")) {
       localStorage.setItem("decisionSpinnerOptions", JSON.stringify(options));
     }
@@ -406,7 +426,6 @@ export function SpinnerPage() {
   }, [t.title, lang]);
 
   // --- Handlers (handleAddOption, handleInputKeyPress, handleRemoveOption, handleSpin) ---
-  // ... (These remain identical to the previous version, using the `tg` state variable for haptics) ...
   const handleAddOption = () => {
     const optionText = optionInputRef.current.value.trim();
     if (optionText && !options.includes(optionText)) {
@@ -455,9 +474,8 @@ export function SpinnerPage() {
   };
 
   // --- Gemini API (callGeminiApi, handleGeminiSuggestions) ---
-  // ... (These remain identical to the previous version, using the `tg` state variable for popups/MainButton) ...
   const callGeminiApi = async (prompt, maxRetries = 3) => {
-    const API_KEY = "AIzaSyD5z_90qKVlOebb0HEouZ3f-qtYJH7QctQ"; // Handled by the environment
+    const API_KEY = ""; // Handled by the environment
     const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
 
     const payload = {
@@ -569,7 +587,6 @@ export function SpinnerPage() {
   };
 
   // --- Telegram Stars (requestDonation) ---
-  // ... (This remains identical to the previous version, using the `tg` state variable) ...
   const requestDonation = async (amount) => {
     if (!tg || !tg.initData) {
       console.warn(
@@ -635,13 +652,16 @@ export function SpinnerPage() {
   };
 
   // --- Render ---
-  // Removed AppRoot, HashRouter, Routes
+  console.log("Rendering SpinnerPage. tg:", tg, "tg.platform:", tg?.platform);
+  // Restore original, correct condition
+  const shouldRenderStars = tg && tg.platform !== "unknown";
+  console.log("Should render Stars section?", shouldRenderStars);
+
   return (
     <React.Fragment>
       {/* --- STYLE DEFINITIONS --- */}
       <style>{`
-                /* Keep styles minimal and rely on Tailwind where possible */
-                /* Ensure body background is set, might conflict if template sets it differently */
+                /* ... (styles remain the same) ... */
                 body {
                     background-color: var(--tg-theme-bg-color, #ffffff);
                 }
@@ -702,8 +722,6 @@ export function SpinnerPage() {
                 }
             `}</style>
 
-      {/* Main container div */}
-      {/* Added overflow-x-hidden to prevent horizontal scroll */}
       <div
         className="flex flex-col items-center justify-start min-h-screen p-4 pt-8 overflow-x-hidden"
         style={{ backgroundColor: "var(--tg-theme-bg-color)" }}
@@ -712,7 +730,7 @@ export function SpinnerPage() {
         <div className="w-full max-w-md mx-auto mb-4">
           <select
             id="lang-select"
-            className="lang-select w-full rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500" // Added offset
+            className="lang-select w-full rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500"
             value={lang}
             onChange={(e) => setLang(e.target.value)}
           >
@@ -727,8 +745,6 @@ export function SpinnerPage() {
 
         {/* Main Card */}
         <div className="card w-full max-w-md mx-auto rounded-2xl p-6 text-center shadow-lg mb-4">
-          {" "}
-          {/* Added mb-4 */}
           <h1 className="text-3xl font-bold mb-2">{t.heading}</h1>
           <p
             className="mb-6 text-sm"
@@ -736,6 +752,7 @@ export function SpinnerPage() {
           >
             {t.subheading}
           </p>
+
           {/* Spinner Wheel */}
           <div className="relative w-72 h-72 md:w-80 md:h-80 mx-auto mb-6">
             <div className="spinner-arrow absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 z-10"></div>
@@ -748,6 +765,7 @@ export function SpinnerPage() {
               style={{ transformOrigin: "center center" }}
             ></canvas>
           </div>
+
           {/* Result Display */}
           <div
             className={`text-2xl font-semibold my-4 h-8 transition-opacity duration-300 ${
@@ -756,6 +774,7 @@ export function SpinnerPage() {
           >
             {result || " "}
           </div>
+
           {/* Spin Button */}
           <button
             id="spin-btn"
@@ -765,6 +784,7 @@ export function SpinnerPage() {
           >
             {t.spinButton}
           </button>
+
           {/* Option Input */}
           <div className="mt-6">
             <div className="flex gap-2">
@@ -772,7 +792,7 @@ export function SpinnerPage() {
                 type="text"
                 id="option-input"
                 ref={optionInputRef}
-                className="input-field flex-grow rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500" // Added offset
+                className="input-field flex-grow rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500"
                 placeholder={t.placeholder}
                 onKeyPress={handleInputKeyPress}
               />
@@ -819,6 +839,7 @@ export function SpinnerPage() {
               <span>{geminiLoading ? t.geminiLoading : t.geminiButton}</span>
             </button>
           </div>
+
           {/* Options Display */}
           <div className="mt-4 w-full">
             {options.length <= 7 ? (
@@ -872,11 +893,9 @@ export function SpinnerPage() {
         </div>
 
         {/* Telegram Stars Donation Section */}
-        {/* Conditionally render based on tg state, ensuring tg object exists */}
+        {/* Restore original condition */}
         {tg && tg.platform !== "unknown" && (
           <div className="card w-full max-w-md mx-auto rounded-2xl p-6 text-center mt-4 shadow-lg mb-4">
-            {" "}
-            {/* Added mb-4 */}
             <h2 className="text-xl font-bold mb-1">{t.supportTitle}</h2>
             <p
               className="mb-4 text-sm"
@@ -884,6 +903,7 @@ export function SpinnerPage() {
             >
               {t.supportSub}
             </p>
+
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => requestDonation(100)}
@@ -907,9 +927,7 @@ export function SpinnerPage() {
           className="mt-4 text-center text-xs"
           style={{ color: "var(--tg-theme-hint-color)" }}
         >
-          {" "}
-          {/* Reduced margin */}
-          {/* <p>{t.footer}</p> */}
+          <p>{t.footer}</p>
         </footer>
       </div>
     </React.Fragment>
